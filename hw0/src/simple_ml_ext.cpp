@@ -2,6 +2,7 @@
 #include <pybind11/numpy.h>
 #include <cmath>
 #include <iostream>
+#include <vector>
 
 namespace py = pybind11;
 
@@ -33,7 +34,45 @@ void softmax_regression_epoch_cpp(const float *X, const unsigned char *y,
      */
 
     /// BEGIN YOUR CODE
+    for (size_t b = 0; b < m; b += batch) {
+        // for each batch:
 
+        // calculate Z - I_y (after normalize)
+        std::vector<std::vector<float>> Z(batch, std::vector<float>(k, 0));
+        //float Z[batch][k] = {};
+        size_t z_row, z_col;
+        for (z_row = 0; z_row < batch; z_row++) {
+            float sum = 0; // row-wise sum
+            for (z_col = 0; z_col < k; z_col++) {
+                float z_element = 0;
+                for (size_t i = 0; i < n; i++) {
+                    z_element += X[(b+z_row)*n + i] * theta[i*k + z_col];
+                }
+                z_element = std::exp(z_element);
+                Z[z_row][z_col] = z_element;
+                sum += z_element;
+            }
+            
+            // normalize and minus e_y
+            for (z_col = 0; z_col < k; z_col++) {
+                Z[z_row][z_col] /= sum;
+                if (z_col == y[b+z_row])
+                    Z[z_row][z_col] -= 1;
+            }
+        }
+
+        // calculate grad: X.T @ (Z - I_y) / batch
+        // and update in place
+        size_t g_row, g_col;
+        for (g_row = 0; g_row < n; g_row++) {
+            for (g_col = 0; g_col < k; g_col++) {
+                for (size_t i = 0; i < batch; i++) {
+                    theta[g_row*k + g_col] -= X[(b+i)*n + g_row] * Z[i][g_col] * lr / batch;
+                }
+                
+            }
+        }
+    }
     /// END YOUR CODE
 }
 

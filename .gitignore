@@ -1,0 +1,43 @@
+# 忽略 Python 编译文件
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 忽略环境配置文件
+.env
+.venv
+venv/
+ENV/
+env/
+*.env
+
+# 忽略构建输出文件
+build/
+dist/
+*.egg-info/
+
+# 忽略日志和调试文件
+*.log
+*.sqlite3
+
+# 忽略 Jupyter Notebook 的检查点
+.ipynb_checkpoints/
+
+# 忽略 IDE/编辑器的配置文件
+.vscode/
+.idea/
+*.swp
+
+# 忽略测试覆盖率文件
+.coverage
+.tox/
+.nox/
+.cache/
+
+# 忽略 pip 缓存
+pip-log.txt
+pip-delete-this-directory.txt
+
+# 忽略特定平台文件
+.DS_Store
+Thumbs.db
