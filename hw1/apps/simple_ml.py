@@ -10,7 +10,7 @@ sys.path.append("python/")
 import needle as ndl
 
 
-def parse_mnist(image_filesname, label_filename):
+def parse_mnist(image_filename, label_filename):
     """Read an images and labels file in MNIST format.  See this page:
     http://yann.lecun.com/exdb/mnist/ for a description of the file format.
 
@@ -33,7 +33,19 @@ def parse_mnist(image_filesname, label_filename):
                 for MNIST will contain the values 0-9.
     """
     ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
+    # load the image file
+    with gzip.open(image_filename, 'rb') as f:
+      magic, num, rows, cols = struct.unpack(">IIII", f.read(16))
+      images = np.frombuffer(f.read(), dtype=np.uint8).reshape(num, rows * cols)
+      
+    # normalize and convert
+    images = images.astype(np.float32) / 255.0
+
+    with gzip.open(label_filename, 'rb') as f:
+      magic, num = struct.unpack(">II", f.read(8))
+      labels = np.frombuffer(f.read(), dtype=np.uint8)
+
+    return (images, labels)
     ### END YOUR SOLUTION
 
 
@@ -54,7 +66,9 @@ def softmax_loss(Z, y_one_hot):
         Average softmax loss over the sample. (ndl.Tensor[np.float32])
     """
     ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
+    log_sum_exp_Z = ndl.ops.log(ndl.ops.summation(ndl.ops.exp(Z), axes=(1,)))
+    Z_y = ndl.ops.summation(Z * y_one_hot, axes=(1,))
+    return ndl.ops.summation(log_sum_exp_Z - Z_y) / Z.shape[0]
     ### END YOUR SOLUTION
 
 
@@ -82,8 +96,38 @@ def nn_epoch(X, y, W1, W2, lr=0.1, batch=100):
             W2: ndl.Tensor[np.float32]
     """
 
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
+    ### BEGIN YOUR SOLUTION 
+    for i in range(0, X.shape[0], batch):
+        # 获取当前批次数据
+        X_batch = ndl.Tensor(X[i:i+batch])
+        y_batch = y[i:i+batch]
+        
+        # 前向传播
+        Z1 = ndl.relu(X_batch @ W1)  # 第一层输出
+        logits = Z1 @ W2             # 第二层输出(logits)
+        
+        # 计算损失
+        # 将y转换为one-hot编码
+        y_one_hot = np.zeros((batch, W2.shape[1]))
+        y_one_hot[np.arange(batch), y_batch] = 1
+        y_one_hot = ndl.Tensor(y_one_hot)
+        
+        # 计算softmax loss
+        loss = softmax_loss(logits, y_one_hot)
+        
+        # 反向传播
+        loss.backward()
+        
+        # 更新权重
+        # 使用W1.grad和W2.grad (由backward()自动计算)
+        W1 = ndl.Tensor(W1.realize_cached_data() - lr * W1.grad.realize_cached_data())
+        W2 = ndl.Tensor(W2.realize_cached_data() - lr * W2.grad.realize_cached_data())
+        
+        # 清除梯度，为下一批次准备
+        W1.grad = None
+        W2.grad = None
+        
+    return W1, W2
     ### END YOUR SOLUTION
 
 

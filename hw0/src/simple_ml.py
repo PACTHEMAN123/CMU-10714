@@ -24,7 +24,7 @@ def add(x, y):
     ### END YOUR CODE
 
 
-def parse_mnist(image_filename, label_filename):
+def parse_mnist(image_filesname, label_filename):
     """ Read an images and labels file in MNIST format.  See this page:
     http://yann.lecun.com/exdb/mnist/ for a description of the file format.
 
@@ -50,14 +50,14 @@ def parse_mnist(image_filename, label_filename):
     ### BEGIN YOUR CODE
 
     # load the image file
-    with gzip.open(image_filename, 'rb') as f:
+    with gzip.open(image_filesname, 'rb') as f:
       magic, num, rows, cols = struct.unpack(">IIII", f.read(16))
       images = np.frombuffer(f.read(), dtype=np.uint8).reshape(num, rows * cols)
       
     # normalize and convert
     images = images.astype(np.float32) / 255.0
 
-    with gzip.open(label_filename, 'rb') as f:
+    with gzip.open(label_filesname, 'rb') as f:
       magic, num = struct.unpack(">II", f.read(8))
       labels = np.frombuffer(f.read(), dtype=np.uint8)
 
@@ -82,7 +82,6 @@ def softmax_loss(Z, y):
     """
     ### BEGIN YOUR CODE
 
-    # load the image file
     return np.mean(np.log(np.sum(np.exp(Z), axis=1)) - Z[np.arange(Z.shape[0]), y])
     ### END YOUR CODE
 

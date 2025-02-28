@@ -74,12 +74,13 @@ class EWisePow(TensorOp):
 
     def compute(self, a: NDArray, b: NDArray) -> NDArray:
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return a ** b
         ### END YOUR SOLUTION
         
     def gradient(self, out_grad, node):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        lhs, rhs = node.inputs
+        return rhs * (lhs ** (rhs - 1)), (lhs ** rhs) * log(lhs)
         ### END YOUR SOLUTION
 
 def power(a, b):
@@ -94,12 +95,12 @@ class PowerScalar(TensorOp):
 
     def compute(self, a: NDArray) -> NDArray:
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return a ** self.scalar
         ### END YOUR SOLUTION
 
     def gradient(self, out_grad, node):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return out_grad * self.scalar * (node.inputs[0] ** (self.scalar - 1)) 
         ### END YOUR SOLUTION
 
 
@@ -112,12 +113,13 @@ class EWiseDiv(TensorOp):
 
     def compute(self, a, b):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return a / b
         ### END YOUR SOLUTION
 
     def gradient(self, out_grad, node):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        lhs, rhs = node.inputs
+        return out_grad / rhs, -out_grad * lhs / (rhs * rhs) 
         ### END YOUR SOLUTION
 
 
@@ -131,12 +133,12 @@ class DivScalar(TensorOp):
 
     def compute(self, a):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return a / self.scalar
         ### END YOUR SOLUTION
 
     def gradient(self, out_grad, node):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return out_grad * (1 / self.scalar)
         ### END YOUR SOLUTION
 
 
@@ -150,12 +152,15 @@ class Transpose(TensorOp):
 
     def compute(self, a):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        if self.axes:
+            return array_api.swapaxes(a, self.axes[0], self.axes[1])
+        else:
+            return array_api.swapaxes(a, a.ndim - 2, a.ndim - 1)
         ### END YOUR SOLUTION
 
     def gradient(self, out_grad, node):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return transpose(out_grad, self.axes)
         ### END YOUR SOLUTION
 
 
@@ -169,12 +174,12 @@ class Reshape(TensorOp):
 
     def compute(self, a):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return array_api.reshape(a, self.shape)
         ### END YOUR SOLUTION
 
     def gradient(self, out_grad, node):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return reshape(out_grad, node.inputs[0].shape)
         ### END YOUR SOLUTION
 
 
@@ -188,12 +193,32 @@ class BroadcastTo(TensorOp):
 
     def compute(self, a):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return array_api.broadcast_to(a, self.shape)
         ### END YOUR SOLUTION
 
     def gradient(self, out_grad, node):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        # 获取输入形状
+        in_shape = node.inputs[0].shape
+        
+        # 计算需要求和的轴
+        axes = []
+        # 处理维度不同的情况
+        if len(in_shape) != len(self.shape):
+            # 需要对新增的维度求和
+            axes.extend(range(len(self.shape) - len(in_shape)))
+        # 处理广播维度的情况
+        for i, (in_dim, out_dim) in enumerate(zip(in_shape, self.shape[len(self.shape)-len(in_shape):])):
+            if in_dim == 1 and out_dim > 1:
+                axes.append(i + len(self.shape) - len(in_shape))
+                
+        # 如果有需要求和的轴，进行求和
+        grad = out_grad
+        if axes:
+            grad = summation(out_grad, tuple(axes))
+            
+        # 确保返回的形状正确
+        return reshape(grad, in_shape)
         ### END YOUR SOLUTION
 
 
@@ -207,12 +232,28 @@ class Summation(TensorOp):
 
     def compute(self, a):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return array_api.sum(a, axis=self.axes)
         ### END YOUR SOLUTION
 
     def gradient(self, out_grad, node):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        # 获取输入形状
+        input_shape = node.inputs[0].shape
+        
+        # 如果axes为None，则是对所有元素求和
+        if self.axes is None:
+            return broadcast_to(reshape(out_grad, (1,) * len(input_shape)), input_shape)
+        
+        # 将单个axis转换为tuple
+        axes = (self.axes,) if isinstance(self.axes, int) else self.axes
+        
+        # 计算输出形状：在求和的维度上为1，其他维度保持不变
+        new_shape = list(input_shape)
+        for axis in axes:
+            new_shape[axis] = 1
+            
+        # 先reshape成正确的形状，再broadcast回原始形状
+        return broadcast_to(reshape(out_grad, new_shape), input_shape)
         ### END YOUR SOLUTION
 
 
@@ -223,12 +264,41 @@ def summation(a, axes=None):
 class MatMul(TensorOp):
     def compute(self, a, b):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return a @ b
         ### END YOUR SOLUTION
 
     def gradient(self, out_grad, node):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        lhs, rhs = node.inputs
+        
+        # 获取形状信息
+        lhs_shape = lhs.shape
+        rhs_shape = rhs.shape
+        
+        # 处理批量矩阵乘法的情况
+        if len(lhs_shape) > 2 or len(rhs_shape) > 2:
+            # 如果左侧输入维度较少，需要扩展维度
+            if len(lhs_shape) < len(rhs_shape):
+                lhs = reshape(lhs, (1,) * (len(rhs_shape) - 2) + lhs_shape)
+            # 如果右侧输入维度较少，需要扩展维度
+            elif len(rhs_shape) < len(lhs_shape):
+                rhs = reshape(rhs, (1,) * (len(lhs_shape) - 2) + rhs_shape)
+                
+            # 计算梯度
+            lgrad = matmul(out_grad, transpose(rhs, axes=(-2, -1)))
+            rgrad = matmul(transpose(lhs, axes=(-2, -1)), out_grad)
+            
+            # 如果原始输入维度较少，需要去掉扩展的维度
+            if len(node.inputs[0].shape) < len(lgrad.shape):
+                lgrad = summation(lgrad, tuple(range(len(lgrad.shape) - len(node.inputs[0].shape))))
+            if len(node.inputs[1].shape) < len(rgrad.shape):
+                rgrad = summation(rgrad, tuple(range(len(rgrad.shape) - len(node.inputs[1].shape))))
+        else:
+            # 普通矩阵乘法
+            lgrad = matmul(out_grad, transpose(rhs))
+            rgrad = matmul(transpose(lhs), out_grad)
+            
+        return lgrad, rgrad
         ### END YOUR SOLUTION
 
 
@@ -239,12 +309,12 @@ def matmul(a, b):
 class Negate(TensorOp):
     def compute(self, a):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return array_api.negative(a)
         ### END YOUR SOLUTION
 
     def gradient(self, out_grad, node):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return -1 * out_grad
         ### END YOUR SOLUTION
 
 
@@ -255,12 +325,12 @@ def negate(a):
 class Log(TensorOp):
     def compute(self, a):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return array_api.log(a)
         ### END YOUR SOLUTION
 
     def gradient(self, out_grad, node):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return out_grad * 1 / node.inputs[0] 
         ### END YOUR SOLUTION
 
 
@@ -271,12 +341,12 @@ def log(a):
 class Exp(TensorOp):
     def compute(self, a):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return array_api.exp(a)
         ### END YOUR SOLUTION
 
     def gradient(self, out_grad, node):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return out_grad * exp(node.inputs[0])
         ### END YOUR SOLUTION
 
 
@@ -287,12 +357,16 @@ def exp(a):
 class ReLU(TensorOp):
     def compute(self, a):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return array_api.maximum(a, 0)
         ### END YOUR SOLUTION
 
     def gradient(self, out_grad, node):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        a = node.inputs[0]
+        # 创建掩码: a > 0 的位置为1,否则为0
+        mask = a.realize_cached_data() > 0
+        # 将掩码转换为Tensor并与out_grad相乘
+        return out_grad * Tensor(mask)
         ### END YOUR SOLUTION
 
 
